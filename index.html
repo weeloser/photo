@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <!-- Блокируем стандартный зум браузера, так как у нас свой -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Помощник по рисованию (PRO)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #111827;
+            color: #F9FAFB;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            /* Запрещаем браузеру перехватывать жесты */
+            touch-action: none;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: #1F2937;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            position: relative;
+        }
+
+        #main-menu, #drawing-interface {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            box-sizing: border-box;
+            transition: opacity 0.4s ease-in-out, visibility 0.4s;
+        }
+
+        /* Запрещаем выделение текста в интерфейсе */
+        #drawing-interface {
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .menu-hidden {
+            opacity: 0;
+            visibility: hidden;
+            position: absolute;
+            pointer-events: none;
+        }
+    
+        .menu-visible {
+            opacity: 1;
+            visibility: visible;
+            position: relative;
+        }
+
+        h1 {
+            color: #E5E7EB;
+            margin-bottom: 40px;
+            font-weight: 700;
+            font-size: 2.5rem;
+            text-align: center;
+        }
+
+        .btn {
+            background-image: linear-gradient(to right, #3B82F6, #6366F1);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+        
+        .btn-secondary {
+            background-image: none;
+            background-color: #4B5563;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            padding: 12px 24px;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #6B7280;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn-icon {
+            background-color: #4B5563;
+            color: white;
+            border: none;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .btn-icon:hover {
+            background-color: #6B7280;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+            transform: scale(1.05);
+        }
+        .btn-icon.active {
+            background-color: #FBBF24;
+            color: #1F2937;
+        }
+        .btn-icon svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        #shutter-btn {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background-color: #fff;
+            color: #3B82F6;
+            z-index: 10;
+            border: 4px solid #3B82F6;
+            transition: all 0.3s ease;
+        }
+        #shutter-btn:hover {
+            background-color: #f0f0f0;
+            transform: translateX(-50%) scale(1.05);
+        }
+        #shutter-btn svg {
+            width: 35px;
+            height: 35px;
+        }
+
+        #drawing-interface {
+            position: relative;
+            padding: 0;
+        }
+
+        #camera-view {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        #image-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            /* Изначальное смещение и будет основой для transform */
+            transform: translate(-50%, -50%) scale(0.9);
+            cursor: move;
+            width: 90%;
+            height: auto;
+            transition: opacity 0.1s ease-out;
+            /* Улучшаем производительность рендера */
+            will-change: transform;
+        }
+
+        .overlay-hidden {
+            display: none;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(23, 31, 42, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 12px 20px;
+            border-radius: 12px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .control-group label {
+            font-size: 12px;
+            margin-bottom: 8px;
+            color: #D1D5DB;
+            font-weight: 500;
+        }
+
+        input[type="range"] {
+            width: 100px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            cursor: pointer;
+        }
+        @media (min-width: 600px) {
+            input[type="range"] {
+                width: 120px;
+            }
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            background: #4B5563;
+            height: 6px;
+            border-radius: 3px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            margin-top: -5px;
+            background-color: #3B82F6;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            transition: background-color 0.2s;
+        }
+        input[type="range"]:hover::-webkit-slider-thumb {
+            background-color: #60A5FA;
+        }
+        input[type="range"]::-moz-range-track {
+            background: #4B5563;
+            height: 6px;
+            border-radius: 3px;
+        }
+        input[type="range"]::-moz-range-thumb {
+            background-color: #3B82F6;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            transition: background-color 0.2s;
+        }
+        input[type="range"]:hover::-moz-range-thumb {
+            background-color: #60A5FA;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        #modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+        #modal-backdrop:not(.hidden) {
+            opacity: 1;
+            pointer-events: all;
+        }
+        #modal-content {
+            background-color: #1F2937;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            color: #F9FAFB;
+            transform: scale(0.95);
+            transition: transform 0.3s ease;
+        }
+        #modal-backdrop:not(.hidden) #modal-content {
+            transform: scale(1);
+        }
+        #modal-title {
+            color: #fff;
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        #modal-message {
+            margin-bottom: 25px;
+            color: #E5E7EB;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+
+        <div id="main-menu">
+            <h1>Помощник по рисованию</h1>
+            <button class="btn" onclick="startWithCamera()">Начать с камерой</button>
+            <button class="btn" onclick="startWithGallery()">Выбрать из галереи</button>
+            <input type="file" id="gallery-input" class="hidden" accept="image/*">
+        </div>
+
+        <div id="drawing-interface">
+            <video id="camera-view" autoplay playsinline></video>
+            <img id="image-overlay" src="" class="overlay-hidden">
+            
+            <button id="shutter-btn" class="btn-icon hidden" onclick="takePhoto()">
+                <!-- Иконка затвора -->
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574v5.852c0 1.067.75 1.994 1.802 2.169a.75.75 0 0 0 .701-.04 2.31 2.31 0 0 1 2.548 0 .75.75 0 0 0 .701.04 2.31 2.31 0 0 1 2.548 0 .75.75 0 0 0 .701.04 2.31 2.31 0 0 1 2.548 0 .75.75 0 0 0 .701.04 2.31 2.31 0 0 1 2.548 0 .75.75 0 0 0 .701.04c.851-.203 1.548-.822 1.802-1.669.063-.377.121-.754.175-1.134a2.31 2.31 0 0 1 1.02-1.606c.38-.258.6-1.026.6-1.606V9.574c0-1.067-.75-1.994-1.802-2.169a.75.75 0 0 0-.701.04 2.31 2.31 0 0 1-2.548 0 .75.75 0 0 0-.701-.04 2.31 2.31 0 0 1-2.548 0 .75.75 0 0 0-.701-.04 2.31 2.31 0 0 1-2.548 0 .75.75 0 0 0-.701-.04 2.31 2.31 0 0 1-1.606-1.02c-.258-.38-.654-.62-1.026-.62H9.344a2.31 2.31 0 0 1-1.02 1.606c-.38.258-.6.654-.6 1.026V6.175Z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 12a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5Z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                </svg>
+            </button>
+
+            <div id="controls" class="hidden">
+                <button id="flashlight-btn" class="btn-icon hidden" onclick="toggleFlashlight()">
+                    <!-- Иконка выкл -->
+                    <svg id="flash-icon-off" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+                    </svg>
+                    <!-- Иконка вкл -->
+                    <svg id="flash-icon-on" class="hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
+                    </svg>
+                </button>
+                <div class="control-group">
+                    <label for="opacity-slider">Прозрачность</label>
+                    <input type="range" id="opacity-slider" min="0" max="1" step="0.05" value="0.5">
+                </div>
+                <div class="control-group">
+                    <label for="size-slider">Размер</label>
+                    <input type="range" id="size-slider" min="10" max="300" value="90">
+                </div>
+                <div class="control-group">
+                    <label for="paper-slider">Эффект "Эскиз"</label>
+                    <input type="range" id="paper-slider" min="0" max="100" value="0">
+                </div>
+                <button class="btn btn-secondary" onclick="goBackToMenu()">Назад</button>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="modal-backdrop" class="hidden">
+        <div id="modal-content">
+            <h2 id="modal-title"></h2>
+            <p id="modal-message"></p>
+            <button id="modal-close" class="btn">OK</button>
+        </div>
+    </div>
+
+    <script>
+        const mainMenu = document.getElementById('main-menu');
+        const drawingInterface = document.getElementById('drawing-interface');
+        const video = document.getElementById('camera-view');
+        const imageOverlay = document.getElementById('image-overlay');
+        const galleryInput = document.getElementById('gallery-input');
+        const opacitySlider = document.getElementById('opacity-slider');
+        const sizeSlider = document.getElementById('size-slider');
+        const paperSlider = document.getElementById('paper-slider');
+
+        const modalBackdrop = document.getElementById('modal-backdrop');
+        const modalTitle = document.getElementById('modal-title');
+        const modalMessage = document.getElementById('modal-message');
+        const modalClose = document.getElementById('modal-close');
+
+        const flashlightBtn = document.getElementById('flashlight-btn');
+        const flashIconOn = document.getElementById('flash-icon-on');
+        const flashIconOff = document.getElementById('flash-icon-off');
+        const shutterBtn = document.getElementById('shutter-btn');
+        const controls = document.getElementById('controls');
+
+        let stream;
+        let currentTrack = null;
+        let isFlashlightOn = false;
+
+        // Состояние трансформации
+        let translateX = 0;
+        let translateY = 0;
+        let scale = 0.9; // 90%
+        let rotation = 0;
+
+        // Состояние жестов
+        let isDragging = false;
+        let isPinching = false;
+        let lastMouseX, lastMouseY;
+        let startDist, startAngle, startScale, startRotation;
+
+        mainMenu.classList.add('menu-visible');
+        drawingInterface.classList.add('menu-hidden');
+
+        function showModal(title, message) {
+            modalTitle.textContent = title;
+            modalMessage.textContent = message;
+            modalBackdrop.classList.remove('hidden');
+        }
+
+        modalClose.addEventListener('click', () => {
+            modalBackdrop.classList.add('hidden');
+        });
+        modalBackdrop.addEventListener('click', (e) => {
+            if (e.target === modalBackdrop) {
+                modalBackdrop.classList.add('hidden');
+            }
+        });
+
+        async function startWithCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                video.srcObject = stream;
+                handleStreamStart('takePhoto');
+                // galleryInput.click(); // Убираем это
+            } catch (err) {
+                console.error("Ошибка доступа к камере: ", err);
+                showModal("Ошибка", "Не удалось получить доступ к камере. Убедитесь, что вы предоставили разрешение.");
+            }
+        }
+
+        function startWithGallery() {
+            galleryInput.click();
+        }
+
+        galleryInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    imageOverlay.src = e.target.result;
+                    imageOverlay.classList.remove('overlay-hidden');
+                    if (!stream) {
+                        startCameraForGallery();
+                    } else {
+                        // Если камера уже работает (например, с режимом "сфоткать")
+                        // Просто переключаем в режим оверлея
+                        handleStreamStart('galleryOverlay');
+                    }
+                }
+                reader.readAsDataURL(file);
+            } else if (!imageOverlay.src) { // Если файл не выбран И оверлея нет
+                goBackToMenu();
+            }
+        });
+
+        async function startCameraForGallery() {
+             try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                video.srcObject = stream;
+                handleStreamStart('galleryOverlay');
+            } catch (err) {
+                console.error("Ошибка доступа к камере: ", err);
+                showModal("Ошибка", "Не удалось получить доступ к камере. Убедитесь, что вы предоставили разрешение.");
+            }
+        }
+
+    
+        function handleStreamStart(mode) {
+            mainMenu.classList.remove('menu-visible');
+            mainMenu.classList.add('menu-hidden');
+            drawingInterface.classList.remove('menu-hidden');
+            drawingInterface.classList.add('menu-visible');
+
+            currentTrack = stream.getVideoTracks()[0];
+            const capabilities = currentTrack.getCapabilities();
+            if (capabilities.torch) {
+                flashlightBtn.classList.remove('hidden');
+            }
+
+            if (mode === 'takePhoto') {
+                shutterBtn.classList.remove('hidden');
+                controls.classList.add('hidden');
+                imageOverlay.classList.add('overlay-hidden');
+            } else { // 'galleryOverlay'
+                shutterBtn.classList.add('hidden');
+                controls.classList.remove('hidden');
+                imageOverlay.classList.remove('overlay-hidden');
+            }
+        }
+
+        function goBackToMenu() {
+            if (stream) {
+                if (isFlashlightOn) {
+                    toggleFlashlight();
+                }
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+                currentTrack = null;
+            }
+            
+            mainMenu.classList.remove('menu-hidden');
+            mainMenu.classList.add('menu-visible');
+            drawingInterface.classList.remove('menu-visible');
+            drawingInterface.classList.add('menu-hidden');
+            
+            flashlightBtn.classList.add('hidden');
+            shutterBtn.classList.add('hidden');
+            controls.classList.add('hidden');
+
+            imageOverlay.src = "";
+            imageOverlay.classList.add('overlay-hidden');
+            galleryInput.value = ""; 
+
+            // Сброс всех ползунков и стилей
+            opacitySlider.value = 0.5;
+            sizeSlider.value = 90;
+            paperSlider.value = 0;
+            
+            imageOverlay.style.opacity = 0.5;
+            imageOverlay.style.filter = 'none';
+
+            // Сброс трансформации
+            translateX = 0;
+            translateY = 0;
+            scale = 0.9;
+            rotation = 0;
+            updateTransform();
+        }
+
+        function toggleFlashlight() {
+            if (!currentTrack) return;
+            isFlashlightOn = !isFlashlightOn;
+            currentTrack.applyConstraints({ advanced: [{ torch: isFlashlightOn }] });
+            
+            flashlightBtn.classList.toggle('active', isFlashlightOn);
+            flashIconOn.classList.toggle('hidden', !isFlashlightOn);
+            flashIconOff.classList.toggle('hidden', isFlashlightOn);
+        }
+
+        function takePhoto() {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const dataURL = canvas.toDataURL('image/png');
+            
+            imageOverlay.src = dataURL;
+            imageOverlay.classList.remove('overlay-hidden');
+            
+            shutterBtn.classList.add('hidden');
+            controls.classList.remove('hidden');
+        }
+
+        opacitySlider.addEventListener('input', (e) => {
+            imageOverlay.style.opacity = e.target.value;
+        });
+
+        sizeSlider.addEventListener('input', (e) => {
+            scale = e.target.value / 100;
+            updateTransform();
+        });
+        
+        paperSlider.addEventListener('input', (e) => {
+            const value = e.target.value;
+            if (value == 0) {
+                imageOverlay.style.filter = 'none';
+            } else {
+                const grayscale = value;
+                const contrast = 100 + parseInt(value, 10);
+                const brightness = 1 + (value / 100) * 0.5;
+                imageOverlay.style.filter = `grayscale(${grayscale}%) contrast(${contrast}%) brightness(${brightness})`;
+            }
+        });
+
+        function updateTransform() {
+            imageOverlay.style.transform = `translate(calc(-50% + ${translateX}px), calc(-50% + ${translateY}px)) scale(${scale}) rotate(${rotation}deg)`;
+        }
+
+        // --- Логика жестов ---
+
+        function getDist(touches) {
+            const dx = touches[0].clientX - touches[1].clientX;
+            const dy = touches[0].clientY - touches[1].clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function getAngle(touches) {
+            const dx = touches[0].clientX - touches[1].clientX;
+            const dy = touches[0].clientY - touches[1].clientY;
+            return Math.atan2(dy, dx) * 180 / Math.PI;
+        }
+
+        function onPointerDown(e) {
+            // Исправлено: не блокируем жесты, если нажатие на контролы
+            if (e.target.closest('#controls')) return;
+            e.preventDefault();
+
+            if (e.touches) {
+                if (e.touches.length === 2) {
+                    isDragging = false;
+                    isPinching = true;
+                    startDist = getDist(e.touches);
+                    startAngle = getAngle(e.touches);
+                    startScale = scale;
+                    startRotation = rotation;
+                } else if (e.touches.length === 1) {
+                    isPinching = false;
+                    isDragging = true;
+                    lastMouseX = e.touches[0].clientX;
+                    lastMouseY = e.touches[0].clientY;
+                }
+            } else {
+                isPinching = false;
+                isDragging = true;
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+            }
+        }
+
+        function onPointerMove(e) {
+            // Исправлено: не двигаем картинку, если крутим ползунок
+            if (e.target.closest('#controls')) return;
+            e.preventDefault();
+
+            if (isDragging) {
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                
+                const dx = clientX - lastMouseX;
+                const dy = clientY - lastMouseY;
+
+                translateX += dx;
+                translateY += dy;
+
+                lastMouseX = clientX;
+                lastMouseY = clientY;
+
+            } else if (isPinching && e.touches && e.touches.length === 2) {
+                const newDist = getDist(e.touches);
+                const newAngle = getAngle(e.touches);
+
+                scale = startScale * (newDist / startDist);
+                rotation = startRotation + (newAngle - startAngle);
+                
+                // Синхронизируем ползунок
+                sizeSlider.value = scale * 100;
+            }
+
+            if (isDragging || isPinching) {
+                updateTransform();
+            }
+        }
+
+        function onPointerUp(e) {
+            isDragging = false;
+            isPinching = false;
+        }
+        
+        // Регистрируем все типы событий
+        drawingInterface.addEventListener('mousedown', onPointerDown);
+        drawingInterface.addEventListener('mousemove', onPointerMove);
+        drawingInterface.addEventListener('mouseup', onPointerUp);
+        drawingInterface.addEventListener('mouseleave', onPointerUp);
+
+        drawingInterface.addEventListener('touchstart', onPointerDown, { passive: false });
+        drawingInterface.addEventListener('touchmove', onPointerMove, { passive: false });
+        drawingInterface.addEventListener('touchend', onPointerUp);
+        drawingInterface.addEventListener('touchcancel', onPointerUp);
+
+    </script>
+</body>
+</html>
+
+
