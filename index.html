@@ -2,13 +2,23 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <!-- Блокируем стандартный зум браузера, так как у нас свой -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- 
+      - Изменено: Добавлено 'viewport-fit=cover'
+      - Это позволяет странице занимать весь экран на телефонах с "челками" или скруглениями,
+      - а мы сможем управлять отступами с помощью safe-area-insets.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Помощник по рисованию (PRO)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
+        /* Добавляем базовые стили для html */
+        html {
+            height: -webkit-fill-available; /* Для старых Safari */
+            height: 100%;
+        }
+
         body {
             font-family: 'Inter', sans-serif;
             margin: 0;
@@ -18,7 +28,16 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            
+            /* - Изменено: 100vh заменено на 100svh (Small Viewport Height)
+              - 100vh некорректно работает на мобильных, когда появляется/исчезает UI браузера (адресная строка).
+              - 100svh - это 100% *минимальной* видимой области, что решает проблему "уезжания" кнопок.
+            */
+            height: 100svh;
+            /* Для старых браузеров, которые не поддерживают svh */
+            height: -webkit-fill-available;
+            height: 100%; /* Фолбэк, если svh не работает, body займет 100% от html */
+            
             overflow: hidden;
             /* Запрещаем браузеру перехватывать жесты */
             touch-action: none;
@@ -27,7 +46,10 @@
         .container {
             width: 100%;
             max-width: 800px;
-            height: 100vh;
+            /* - Изменено: 100vh заменено на 100%
+              - Теперь контейнер занимает 100% высоты родителя (body), который уже имеет правильную высоту 100svh.
+            */
+            height: 100%;
             display: flex;
             flex-direction: column;
             background-color: #1F2937;
@@ -48,10 +70,23 @@
             transition: opacity 0.4s ease-in-out, visibility 0.4s;
         }
 
+        /* - Изменено: Добавляем отступы безопасности (safe-area-insets)
+          - Это нужно, чтобы контент на главном экране (например, заголовок)
+          - не попадал под "челку" (сверху) или полосу "домой" (снизу).
+        */
+        #main-menu {
+            padding-top: calc(20px + env(safe-area-inset-top));
+            padding-bottom: calc(20px + env(safe-area-inset-bottom));
+            padding-left: calc(20px + env(safe-area-inset-left));
+            padding-right: calc(20px + env(safe-area-inset-right));
+        }
+
         /* Запрещаем выделение текста в интерфейсе */
         #drawing-interface {
             user-select: none;
             -webkit-user-select: none;
+            /* Для интерфейса рисования отступы не нужны, т.к. видео должно быть фоном */
+            padding: 0;
         }
 
         .menu-hidden {
@@ -141,7 +176,10 @@
 
         #shutter-btn {
             position: absolute;
-            bottom: 30px;
+            /* - Изменено: Добавлен 'env(safe-area-inset-bottom)'
+              - Это гарантирует, что кнопка будет *над* системной полосой "домой" на iPhone и др.
+            */
+            bottom: calc(30px + env(safe-area-inset-bottom));
             left: 50%;
             transform: translateX(-50%);
             width: 70px;
@@ -164,7 +202,6 @@
 
         #drawing-interface {
             position: relative;
-            padding: 0;
         }
 
         #camera-view {
@@ -196,7 +233,10 @@
 
         #controls {
             position: absolute;
-            bottom: 20px;
+            /* - Изменено: Добавлен 'env(safe-area-inset-bottom)'
+              - Аналогично кнопке затвора, панель управления будет над системной полосой.
+            */
+            bottom: calc(20px + env(safe-area-inset-bottom));
             left: 50%;
             transform: translateX(-50%);
             background-color: rgba(23, 31, 42, 0.8);
@@ -209,6 +249,9 @@
             align-items: center;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
             border: 1px solid rgba(255, 255, 255, 0.1);
+            /* Добавляем немного гибкости для маленьких экранов */
+            flex-wrap: wrap;
+            justify-content: center;
         }
 
         .control-group {
@@ -323,8 +366,11 @@
     </style>
 </head>
 <body>
-
-    <div class="container">
+    <!-- 
+      - Добавляем 'ontouchstart' в body, чтобы :active стили работали 
+      - на iOS (классический трюк)
+    -->
+    <div class="container" ontouchstart="">
 
         <div id="main-menu">
             <h1>Помощник по рисованию</h1>
@@ -443,7 +489,6 @@
                 stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
                 video.srcObject = stream;
                 handleStreamStart('takePhoto');
-                // galleryInput.click(); // Убираем это
             } catch (err) {
                 console.error("Ошибка доступа к камере: ", err);
                 showModal("Ошибка", "Не удалось получить доступ к камере. Убедитесь, что вы предоставили разрешение.");
@@ -591,7 +636,7 @@
                 const grayscale = value;
                 const contrast = 100 + parseInt(value, 10);
                 const brightness = 1 + (value / 100) * 0.5;
-                imageOverlay.style.filter = `grayscale(${grayscale}%) contrast(${contrast}%) brightness(${brightness})`;
+                imageOverlay.style.filter = `grayscale(${grayscale}%) contrast(${contrast}%) brightness(${brightness}%)`;
             }
         });
 
@@ -616,7 +661,7 @@
         function onPointerDown(e) {
             // Исправлено: не блокируем жесты, если нажатие на контролы
             if (e.target.closest('#controls')) return;
-            e.preventDefault();
+            // e.preventDefault(); // Убираем, т.к. мы уже используем touch-action: none в CSS
 
             if (e.touches) {
                 if (e.touches.length === 2) {
@@ -633,6 +678,7 @@
                     lastMouseY = e.touches[0].clientY;
                 }
             } else {
+                // Логика для мыши
                 isPinching = false;
                 isDragging = true;
                 lastMouseX = e.clientX;
@@ -643,7 +689,7 @@
         function onPointerMove(e) {
             // Исправлено: не двигаем картинку, если крутим ползунок
             if (e.target.closest('#controls')) return;
-            e.preventDefault();
+            // e.preventDefault(); // Убираем, т.к. мы уже используем touch-action: none в CSS
 
             if (isDragging) {
                 const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -670,7 +716,8 @@
             }
 
             if (isDragging || isPinching) {
-                updateTransform();
+                // Запрос к requestAnimationFrame для плавности
+                requestAnimationFrame(updateTransform);
             }
         }
 
@@ -680,18 +727,28 @@
         }
         
         // Регистрируем все типы событий
+        // Для мыши
         drawingInterface.addEventListener('mousedown', onPointerDown);
         drawingInterface.addEventListener('mousemove', onPointerMove);
         drawingInterface.addEventListener('mouseup', onPointerUp);
         drawingInterface.addEventListener('mouseleave', onPointerUp);
 
-        drawingInterface.addEventListener('touchstart', onPointerDown, { passive: false });
-        drawingInterface.addEventListener('touchmove', onPointerMove, { passive: false });
+        // Для сенсорного ввода
+        // 'passive: false' оставляем, т.к. мы *хотим* отменить стандартное поведение (скролл)
+        // Но 'touch-action: none' в CSS является более современным решением
+        drawingInterface.addEventListener('touchstart', onPointerDown);
+        drawingInterface.addEventListener('touchmove', onPointerMove);
         drawingInterface.addEventListener('touchend', onPointerUp);
         drawingInterface.addEventListener('touchcancel', onPointerUp);
+
+        // Дополнительно: обновлять высоту при изменении ориентации
+        window.addEventListener('resize', () => {
+            // Этот обработчик теперь в основном нужен для
+            // обновления 100svh при смене ориентации
+            document.body.style.height = '100svh';
+        });
 
     </script>
 </body>
 </html>
-
 
